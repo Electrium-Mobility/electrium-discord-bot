@@ -47,7 +47,7 @@ class ElectriumBot(commands.Bot):
         # take up to ~1h to propagate, so we only do that when GUILD_ID is unset.
         if config.GUILD_ID:
             guild = discord.Object(id=config.GUILD_ID)
-            self.tree.copy_global_to_guild(guild=guild)
+            self.tree.copy_global_to(guild=guild)
             await self.tree.sync(guild=guild)
             logger.info("Slash commands synced to guild %s", config.GUILD_ID)
         else:
