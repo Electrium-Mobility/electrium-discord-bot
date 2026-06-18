@@ -39,9 +39,14 @@ class ElectriumBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents, help_command=None)
 
     async def setup_hook(self) -> None:
-        """Runs once before the bot connects. Set up DB + sync commands here."""
+        """Runs once before the bot connects. Set up DB, load features, sync commands."""
         db.init_db()
         logger.info("Database ready at %s", config.DB_PATH)
+
+        # Feature modules. Add new cogs here as tracks land.
+        for ext in ("cogs.onboarding",):
+            await self.load_extension(ext)
+            logger.info("Loaded extension %s", ext)
 
         # Syncing to a single guild is instant — great for dev. A global sync can
         # take up to ~1h to propagate, so we only do that when GUILD_ID is unset.
