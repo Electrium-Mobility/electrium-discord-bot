@@ -1,4 +1,4 @@
-"""Configuration loaded from environment / .env (Task F1).
+"""Configuration loaded from environment / .env.
 
 Keeping this in one place means every other module imports settings from here
 rather than reading os.environ scattered around the codebase.

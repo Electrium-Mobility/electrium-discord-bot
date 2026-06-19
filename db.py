@@ -1,10 +1,10 @@
-"""SQLite persistence layer (Task F3).
+"""SQLite persistence layer.
 
 The three MVP features share this small database:
 
-  * members — who joined and which sub-team they picked (Track A)
-  * events  — scheduled meetings/events (Track B)
-  * rsvps   — one row per (event, user) response (Track B)
+  * members — who joined and which sub-team they picked
+  * events  — scheduled meetings/events
+  * rsvps   — one row per (event, user) response
 
 Synchronous sqlite3 is intentional. The queries here are tiny and hit a local
 file, so they complete in well under a millisecond and don't meaningfully block
@@ -74,7 +74,7 @@ def init_db() -> None:
         )
 
 
-# --- members (Track A) ------------------------------------------------------
+# --- members ----------------------------------------------------------------
 
 def upsert_member(user_id: int, joined_at: str) -> None:
     """Record that a member exists. Leaves sub_team untouched if already present."""
@@ -96,7 +96,7 @@ def set_sub_team(user_id: int, sub_team: str, joined_at: str) -> None:
         )
 
 
-# --- events (Track B) -------------------------------------------------------
+# --- events -----------------------------------------------------------------
 
 def add_event(
     title: str,
@@ -112,7 +112,10 @@ def add_event(
             "VALUES (?, ?, ?, ?, ?)",
             (title, starts_at, location, created_by, created_at),
         )
-        return int(cur.lastrowid)
+        row_id = cur.lastrowid
+        if row_id is None:  # shouldn't happen for an AUTOINCREMENT insert
+            raise RuntimeError("INSERT did not return a row id for the new event")
+        return row_id
 
 
 def attach_message(event_id: int, channel_id: int, message_id: int) -> None:
@@ -132,7 +135,7 @@ def get_event(event_id: int) -> Optional[sqlite3.Row]:
 def get_unreminded_events_before(threshold: str) -> list[sqlite3.Row]:
     """Events that start at or before `threshold` (ISO UTC) and haven't been reminded.
 
-    The reminder scheduler (Task B3) calls this with `now + reminder_window`.
+    The reminder scheduler calls this with `now + reminder_window`.
     """
     with _connect() as conn:
         return conn.execute(
@@ -146,7 +149,7 @@ def mark_reminded(event_id: int) -> None:
         conn.execute("UPDATE events SET reminded = 1 WHERE id = ?", (event_id,))
 
 
-# --- rsvps (Track B) --------------------------------------------------------
+# --- rsvps ------------------------------------------------------------------
 
 def set_rsvp(event_id: int, user_id: int, status: str, responded_at: str) -> None:
     """Record or update one member's RSVP. One response per (event, user)."""

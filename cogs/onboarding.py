@@ -1,11 +1,11 @@
-"""Onboarding + role buttons (Track A: A2 + A3 + A4).
+"""Onboarding + role buttons.
 
 Flow:
   * An admin runs /post-onboarding in a channel (e.g. #welcome). The bot posts a
-    persistent message with one button per sub-team. (A2)
+    persistent message with one button per sub-team.
   * A member clicks a button -> the matching role is toggled on/off, and their
-    sub-team channels unlock. Clicking again leaves the team. (A3)
-  * When a member JOINS a team, the bot DMs them getting-started links. (A4)
+    sub-team channels unlock. Clicking again leaves the team.
+  * When a member JOINS a team, the bot DMs them getting-started links.
 
 The buttons are a *persistent* view (timeout=None + stable custom_ids + add_view
 in setup), so they keep working even after the bot restarts.
@@ -38,7 +38,7 @@ SUBTEAMS = [
     {"key": "management",  "label": "Management", "emoji": "\U0001f4cb"},     # 📋
 ]
 
-# Getting-started links DM'd when a member joins a team (A4).
+# Getting-started links DM'd when a member joins a team.
 # TODO(team): replace these placeholder URLs with the real onboarding hub / docs.
 GENERAL_RESOURCES = [
     ("Onboarding hub", "https://example.com/electrium/onboarding"),
@@ -162,7 +162,13 @@ class Onboarding(commands.Cog):
             ),
             color=discord.Color.green(),
         )
-        await interaction.channel.send(embed=embed, view=OnboardingView())
+        channel = interaction.channel
+        if not isinstance(channel, discord.abc.Messageable):
+            await interaction.response.send_message(
+                "Please run this in a text channel.", ephemeral=True
+            )
+            return
+        await channel.send(embed=embed, view=OnboardingView())
         await interaction.response.send_message("Posted the role picker ✅", ephemeral=True)
 
     @commands.Cog.listener()

@@ -1,4 +1,4 @@
-"""Electrium Discord bot — entry point (Task F1).
+"""Electrium Discord bot — entry point.
 
 Boots the bot, initializes the database, registers slash commands, and provides
 a `/ping` health check. Feature modules (onboarding, events, github) get added
@@ -26,9 +26,9 @@ logging.basicConfig(
 logger = logging.getLogger("electrium-bot")
 
 # Intents declare what the bot is allowed to receive.
-# - members: required to react to joins and manage roles (Track A onboarding).
+# - members: required to react to joins and manage roles (onboarding).
 # - message_content is deliberately NOT enabled — we use slash commands, so we
-#   don't need to read message text (and it's a privileged intent to avoid).
+#   don't need to read message text.
 intents = discord.Intents.default()
 intents.members = True
 
@@ -48,8 +48,6 @@ class ElectriumBot(commands.Bot):
             await self.load_extension(ext)
             logger.info("Loaded extension %s", ext)
 
-        # Syncing to a single guild is instant — great for dev. A global sync can
-        # take up to ~1h to propagate, so we only do that when GUILD_ID is unset.
         if config.GUILD_ID:
             guild = discord.Object(id=config.GUILD_ID)
             self.tree.copy_global_to(guild=guild)
@@ -65,6 +63,8 @@ bot = ElectriumBot()
 
 @bot.event
 async def on_ready() -> None:
+    if bot.user is None:
+        return
     logger.info("Logged in as %s (id: %s)", bot.user, bot.user.id)
     logger.info("Serving %d guild(s)", len(bot.guilds))
 
