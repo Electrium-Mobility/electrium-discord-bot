@@ -9,7 +9,6 @@ PRONOUN_ROLES = ["she/her", "he/him", "they/them"]
 PRONOUN_OPTIONS = PRONOUN_ROLES + ["prefer not to say"]
 SUBTEAM_ROLES = ["Electrical", "Mechanical", "Firmware", "WebDev", "Management"]
 WELCOME_CHANNEL = "welcome"
-PICKER_MARKER = "electrium-onboarding-picker"
 
 async def set_roles_from(member: discord.Member, managed: list[str], chosen: list[str]):
     guild = member.guild
@@ -96,14 +95,12 @@ class Onboarding(commands.Cog):
             ),
             color=discord.Color.blurple(),
         )
-        embed.set_footer(text=PICKER_MARKER)
         return embed
 
     async def _find_existing_picker(self, channel: discord.TextChannel):
         async for message in channel.history(limit=50):
-            if message.author == self.bot.user and message.embeds:
-                if message.embeds[0].footer.text == PICKER_MARKER:
-                    return message
+            if message.author == self.bot.user:
+                return message
         return None
 
     @commands.Cog.listener()
