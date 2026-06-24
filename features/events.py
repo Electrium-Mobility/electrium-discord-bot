@@ -138,6 +138,15 @@ class EventGroup(app_commands.Group):
         super().__init__(name="event", description="Create and manage events")
         self.bot = bot
 
+    # Message when someone lacks the required permission
+    async def on_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message(
+                "You need the **Manage Events** permission to do that.", ephemeral=True
+            )
+            return
+        log.exception("Unhandled error in /event command", exc_info=error)
+
     @app_commands.command(name="create", description="Create an event (opens a form)")
     @app_commands.checks.has_permissions(manage_events=True)
     async def create(self, interaction: discord.Interaction):
