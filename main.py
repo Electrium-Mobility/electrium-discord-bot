@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+from aiohttp import web
 import os
 
 load_dotenv()
@@ -11,9 +12,20 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 
+# Web server + UptimeRobot pings the url
+async def start_keepalive_server():
+    app = web.Application()
+    app.router.add_get("/", lambda request: web.Response(text="ok"))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 8080))
+    await web.TCPSite(runner, host="0.0.0.0", port=port).start()
+
+
 class ElectriumBot(commands.Bot):
     # setup_hook runs once before the bot connects.
     async def setup_hook(self):
+        await start_keepalive_server()
         #load extensions
         await self.load_extension("features.onboarding")
         await self.load_extension("features.events")
