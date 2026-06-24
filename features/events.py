@@ -1,30 +1,48 @@
 import json
 import logging
+import os
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import asyncpg
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 log = logging.getLogger(__name__)
 
-EVENTS_FILE = Path(__file__).resolve().parent.parent / "events.json"
 TEAM_TZ = ZoneInfo("America/Toronto")
 DATE_FORMAT = "%Y-%m-%d %H:%M"  # e.g. 2026-06-27 18:00
 
-# JSON storage helper
-def load_events() -> dict:
-    if not EVENTS_FILE.exists():
-        return {}
-    with open(EVENTS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+# Postgres (Supabase) storage.
+_pool: asyncpg.Pool | None = None
 
-# JSON storage helper
-def save_events(events: dict):
-    with open(EVENTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(events, f, indent=2)
+async def init_pool():
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(
+            os.environ["DATABASE_URL"], statement_cache_size=0
+        )
+
+async def load_events() -> dict:
+    rows = await _pool.fetch("SELECT message_id, data FROM events")
+    return {row["message_id"]: json.loads(row["data"]) for row in rows}
+
+async def save_events(events: dict):
+    async with _pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.executemany(
+                "INSERT INTO events (message_id, data) VALUES ($1, $2) "
+                "ON CONFLICT (message_id) DO UPDATE SET data = EXCLUDED.data",
+                [(mid, json.dumps(data)) for mid, data in events.items()],
+            )
+            if events:
+                await conn.execute(
+                    "DELETE FROM events WHERE message_id <> ALL($1::text[])",
+                    list(events.keys()),
+                )
+            else:
+                await conn.execute("DELETE FROM events")
 
 
 # Build the embed shown for an event
@@ -63,7 +81,7 @@ class RSVPButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         message_id = str(interaction.message.id)
-        events = load_events()
+        events = await load_events()
         data = events.get(message_id)
         if data is None:
             await interaction.response.send_message(
@@ -77,7 +95,7 @@ class RSVPButton(discord.ui.Button):
         if uid in data[other]:
             data[other].remove(uid)
 
-        save_events(events)
+        await save_events(events)
 
         embed = build_event_embed(interaction.guild, data)
         await interaction.response.edit_message(embed=embed)
@@ -96,9 +114,9 @@ async def post_event(channel: discord.abc.Messageable, guild: discord.Guild, dat
     message = await channel.send(embed=embed)
     await message.edit(view=EventView(str(message.id)))
 
-    events = load_events()
+    events = await load_events()
     events[str(message.id)] = data
-    save_events(events)
+    await save_events(events)
     log.info("Created event %r (%s)", data["title"], message.id)
 
 
@@ -154,7 +172,7 @@ class EventGroup(app_commands.Group):
 
     @app_commands.command(name="list", description="Show all events")
     async def list(self, interaction: discord.Interaction):
-        events = load_events()
+        events = await load_events()
         lines = []
         for message_id, data in events.items():
             try:
@@ -174,7 +192,7 @@ class EventGroup(app_commands.Group):
     @app_commands.describe(target="Event title (exact) or its message id")
     @app_commands.checks.has_permissions(manage_events=True)
     async def delete(self, interaction: discord.Interaction, target: str):
-        events = load_events()
+        events = await load_events()
 
         if target.isdigit():
             matches = [target] if target in events else []
@@ -194,7 +212,7 @@ class EventGroup(app_commands.Group):
 
         message_id = matches[0]
         data = events.pop(message_id)
-        save_events(events)
+        await save_events(events)
 
         channel = self.bot.get_channel(data["channel_id"])
         if channel is not None:
@@ -217,9 +235,10 @@ class Events(commands.Cog):
         self.bot = bot
         bot.tree.add_command(EventGroup(bot))
 
-    # Re-register a view per saved event so old buttons keep working after restart.
+    # Open the DB first, then re-register a view per saved event so old buttons keep working after restart.
     async def cog_load(self):
-        events = load_events()
+        await init_pool()
+        events = await load_events()
         for message_id in events:
             self.bot.add_view(EventView(message_id))
 
