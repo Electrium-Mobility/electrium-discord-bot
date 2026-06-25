@@ -2,7 +2,6 @@
 .env
 
 # Runtime data (created by the bot)
-events.json
 discord.log
 
 # Python
