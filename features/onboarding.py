@@ -8,8 +8,9 @@ log = logging.getLogger(__name__)
 PRONOUN_ROLES = ["she/her", "he/him", "they/them"]
 PRONOUN_OPTIONS = PRONOUN_ROLES + ["prefer not to say"]
 SUBTEAM_ROLES = ["Electrical", "Mechanical", "Firmware", "WebDev", "Management"]
-WELCOME_CHANNEL = "welcome"
+WELCOME_CHANNEL = "welcome" # Bot sends role msg here
 
+# Make the member's roles match "chosen", but only touch roles in "managed"
 async def set_roles_from(member: discord.Member, managed: list[str], chosen: list[str]):
     guild = member.guild
     to_add = []
@@ -36,6 +37,7 @@ async def set_roles_from(member: discord.Member, managed: list[str], chosen: lis
             member,
         )
 
+# Pronoun dropdown
 class PronounSelect(discord.ui.Select):
     def __init__(self):
         options = [discord.SelectOption(label=name) for name in PRONOUN_OPTIONS]
@@ -44,7 +46,7 @@ class PronounSelect(discord.ui.Select):
             min_values=1,
             max_values=1,
             options=options,
-            custom_id="onboarding:pronouns",
+            custom_id="onboarding:pronouns", # fixed id lets clicks work after a bot restart
         )
 
     async def callback(self, interaction: discord.Interaction):
@@ -53,6 +55,7 @@ class PronounSelect(discord.ui.Select):
             f"Set your pronouns to **{self.values[0]}**.", ephemeral=True)
 
 
+# Subteam dropdown
 class SubteamSelect(discord.ui.Select):
     def __init__(self):
         options = [discord.SelectOption(label=name) for name in SUBTEAM_ROLES]
@@ -61,7 +64,7 @@ class SubteamSelect(discord.ui.Select):
             min_values=0,
             max_values=len(SUBTEAM_ROLES),
             options=options,
-            custom_id="onboarding:subteams",
+            custom_id="onboarding:subteams", # fixed id lets clicks work after a bot restart
         )
 
     async def callback(self, interaction: discord.Interaction):

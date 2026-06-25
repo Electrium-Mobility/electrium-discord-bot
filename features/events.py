@@ -28,6 +28,7 @@ async def load_events() -> dict:
     rows = await _pool.fetch("SELECT message_id, data FROM events")
     return {row["message_id"]: json.loads(row["data"]) for row in rows}
 
+# Save every event + remove any that are no longer in the list.
 async def save_events(events: dict):
     async with _pool.acquire() as conn:
         async with conn.transaction():
