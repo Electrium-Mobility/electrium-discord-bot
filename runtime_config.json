@@ -1,0 +1,9 @@
+{
+  "reminder_window_minutes": 0,
+  "general_resources": [
+    {
+      "label": "label",
+      "url": ""
+    }
+  ]
+}
