@@ -4,7 +4,7 @@ Discord bot for the Electrium Mobility team.
 
 ## Prerequisites
 
-- **Python 3.12** — <https://www.python.org/downloads/> (on Windows, tick **"Add python.exe to PATH"** during install)
+- **Python 3.12** — <https://www.python.org/downloads/> (on Windows, tick **"Add python.exe to PATH"** during install). On macOS, the built-in `python3` is 3.9, which is too old; install 3.12 with `brew install python@3.12`.
 - **Git**
 
 ## 1. Create your bot
@@ -21,7 +21,8 @@ Discord bot for the Electrium Mobility team.
 ```bash
 git clone https://github.com/Electrium-Mobility/electrium-discord-bot.git
 cd electrium-discord-bot
-python -m venv .venv
+python -m venv .venv          #Windows
+# python3.12 -m venv .venv    #macOS
 
 # activate the venv:
 .\.venv\Scripts\activate      # Windows (PowerShell)
@@ -47,4 +48,5 @@ Type `/ping` in your test server — the bot replies **Pong**.
 
 ---
 
-Opening the folder in **VS Code**? It's preconfigured to use `.venv` (via `.vscode/settings.json`). If imports show as unresolved, run **Ctrl+Shift+P → Python: Select Interpreter** and pick the `.venv` one.
+Opening the folder in **VS Code**? On Windows it's preconfigured to use `.venv` (via `.vscode/settings.json`). 
+On **macOS/Linux** that setting points to the Windows path, so imports will show as unresolved: run **Cmd+Shift+P → Python: Select Interpreter → Enter interpreter path...** and enter `.venv/bin/python`.
