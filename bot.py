@@ -44,7 +44,7 @@ class ElectriumBot(commands.Bot):
         logger.info("Database ready at %s", config.DB_PATH)
 
         # Feature modules. Add new cogs here as tracks land.
-        for ext in ("cogs.onboarding",):
+        for ext in ("cogs.onboarding", "cogs.events"):
             await self.load_extension(ext)
             logger.info("Loaded extension %s", ext)
 
