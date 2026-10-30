@@ -11,6 +11,8 @@ from discord import app_commands
 from discord.ext import commands
 
 import db
+import re
+
 
 logger = logging.getLogger("electrium-bot.events")
 
@@ -56,6 +58,69 @@ def build_event_embed(event, counts: dict[str, int]) -> discord.Embed:
     embed.set_footer(text=f"Event #{event['id']}")
     return embed
 
+#Quick lookups built from RSVP_OPTIONS: "going" -> ("Going", "✅")
+OPTION_INFO = {key: (label, emoji) for key, label, emoji in RSVP_OPTIONS}
+BUTTON_STYLES = {
+    "going": discord.ButtonStyle.success, #green
+    "maybe": discord.ButtonStyle.secondary, #grey
+    "cant": discord.ButtonStyle.danger, #red
+}
+
+class RSVPButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"rsvp:(?P<event_id>\d+):(?P<status>going|maybe|cant)",
+):
+    """One RSVP button. Its custom_id (e.g. 'rsvp:3:going') says which event and which choice.
+    Because the id carries everything, the bot can rebuild the button after a restart.
+    """
+
+    def __init__(self, event_id: int, status: str) -> None:
+        label, emoji = OPTION_INFO[status]
+        super().__init__(
+            discord.ui.Button(
+                label=label,
+                emoji=emoji,
+                style=BUTTON_STYLES[status],
+                custom_id=f"rsvp:{event_id}:{status}",
+            )
+        )
+        self.event_id = event_id
+        self.status = status
+
+    @classmethod
+    async def from_custom_id(
+        cls,
+        interaction: discord.Interaction,
+        item: discord.ui.Button,
+        match: re.Match[str],
+    ) -> RSVPButton:
+        """Called by discord.py when someone clicks a button whose id matches the template."""
+        return cls(int(match["event_id"]), match["status"])
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        event = db.get_event(self.event_id)
+        if event is None:
+            await interaction.response.send_message("This event no longer exists.", ephemeral=True)
+            return
+
+        now = datetime.now(timezone.utc).isoformat()
+        db.set_rsvp(self.event_id, interaction.user.id, self.status, now)
+
+        #Redraw the card with the new counts and replace it in place.
+        embed = build_event_embed(event, db.get_rsvp_counts(self.event_id))
+        await interaction.response.edit_message(embed=embed)
+
+        label, emoji = OPTION_INFO[self.status]
+        await interaction.followup.send(f"{emoji} You're marked as **{label}**.", ephemeral=True)
+
+def build_rsvp_view(event_id: int) -> discord.ui.View:
+    """The row of three RSVP buttons for one event."""
+    view = discord.ui.View(timeout=None)
+    for key, _label, _emoji in RSVP_OPTIONS:
+        view.add_item(RSVPButton(event_id, key))
+    return view
+    
+                   
 class Events(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -88,7 +153,7 @@ class Events(commands.Cog):
         assert event is not None # we just insert it, so it must exist
         embed = build_event_embed(event, db.get_rsvp_counts(event_id))
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, view=build_rsvp_view(event_id))
 
         #remember which message is this event's card, so later steps can edit it.
         message = await interaction.original_response()
@@ -96,3 +161,5 @@ class Events(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Events(bot))
+    # Let discord.py rebuild RSVP buttons from their custom_id, even after a restart.
+    bot.add_dynamic_items(RSVPButton)
