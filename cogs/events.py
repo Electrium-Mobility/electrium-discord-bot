@@ -54,7 +54,15 @@ def build_event_embed(event, counts: dict[str, int]) -> discord.Embed:
     if event["location"]:
         embed.add_field(name="Where", value=event["location"], inline=False)
     for key, label, emoji in RSVP_OPTIONS:
-        embed.add_field(name=f"{emoji} {label}", value=str(counts.get(key, 0)),inline=True)
+        user_ids = db.get_rsvps_by_status(event["id"], key)
+        shown = ",".join(f"<@{uid}>" for uid in user_ids[:20])
+        if len(user_ids) > 20:
+            shown += f" +{len(user_ids) - 20} more"
+        embed.add_field(
+            name=f"{emoji} {label} ({counts.get(key, 0)})",
+            value=shown or "-",
+            inline=True,
+        )
     embed.set_footer(text=f"Event #{event['id']}")
     return embed
 
