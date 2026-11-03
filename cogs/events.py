@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import db
 import re
@@ -19,6 +19,8 @@ logger = logging.getLogger("electrium-bot.events")
 #since the design team is in Waterloo, so times people type are Toronto time.
 LOCAL_TZ = ZoneInfo("America/Toronto")
 TIME_FORMAT = "%Y-%m-%d %H:%M"  # e.g. 2026-10-30 18:00
+#how long before an event the reminder goes out.
+REMINDER_LEAD = timedelta(hours=1)
 RSVP_OPTIONS = [
     ("going", "Going", "✅"),
     ("maybe", "Maybe", "🤔"),
@@ -133,6 +135,57 @@ class Events(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+    async def cog_load(self) -> None:
+        """Runs when the cog is added: start the reminder loop."""
+        self.send_reminders.start()
+
+    async def cog_upload(self) -> None:
+        """runs when the cog is removed: stop the loop cleanly."""
+        self.send_reminders.cancel()
+
+    @tasks.loop(minutes=1)
+    async def send_reminders(self) -> None:
+        """every minute, remind people about events starting within REMINDER_LEAD."""
+        now = datetime.now(timezone.utc)
+        threshold = (now + REMINDER_LEAD).isoformat()
+
+        for event in db.get_unreminded_events_before(threshold):
+            starts_at = datetime.fromisoformat(event["starts_at"])
+            try:
+                if starts_at > now: #skip events that already started while the bot was off
+                    await self.post_reminder(event)
+            except Exception:
+                logger.exception("Failed to send reminder for event %s", event["id"])
+            #Mark it either way, so one broken event can't be retired (and spam) evenry minute.
+            db.mark_reminded(event["id"])
+
+    @send_reminders.before_loop
+    async def before_reminders(self) -> None:
+        """Don't start checking until the bot is connected and can see channels."""
+        await self.bot.wait_until_ready()
+
+    async def post_reminder(self, event) -> None:
+        """Reply to the event card, pinging everyone who said going"""
+        if event["channel_id"] is None: #event has no card (created before cards existed)
+            return
+        channel = self.bot.get_channel(event["channel_id"])
+        if channel is None:
+            channel = await self.bot.fetch_channel(event["channel_id"])
+        if not isinstance(channel, discord.abc.Messageable):
+            return
+
+        going = db.get_rsvps_by_status(event["id"], "going")
+        mentions = " ".join(f"<@{uid}>" for uid in going) or "No one has RSVP'd Going yet."
+        unix = int(datetime.fromisoformat(event["starts_at"]).timestamp())
+
+        await channel.send(
+            f"⏰ **{event['title']}** starts <t:{unix}:R>!\n{mentions}",
+            reference=discord.MessageReference(
+                message_id=event["message_id"],
+                channel_id=event["channel_id"],
+                fail_if_not_exists=False,
+            ),
+        )
     event = app_commands.Group(name="event", description="Team events")
 
     @event.command(name="create", description="create an event members can RSVP to.")
