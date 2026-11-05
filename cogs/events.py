@@ -139,7 +139,7 @@ class Events(commands.Cog):
         """Runs when the cog is added: start the reminder loop."""
         self.send_reminders.start()
 
-    async def cog_upload(self) -> None:
+    async def cog_unload(self) -> None:
         """runs when the cog is removed: stop the loop cleanly."""
         self.send_reminders.cancel()
 
